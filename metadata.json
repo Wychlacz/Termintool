@@ -1,0 +1,13 @@
+{
+  "name": "Art Reisen Terminplaner",
+  "short_name": "ArtReisen",
+  "description": "Stilvolle Terminbuchung und Verwaltung für Art Reisen.",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "theme_color": "#0085cd",
+  "background_color": "#ffffff",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
