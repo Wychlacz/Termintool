@@ -7,7 +7,8 @@ import {
   updateOpeningHours,
   getMakeWebhookUrl,
   saveMakeWebhookUrl,
-  sendToMakeWebhook
+  sendToMakeWebhook,
+  createMakeWebhookPayload
 } from '../services/bookingService';
 import { 
   saveSupabaseCredentials, 
@@ -85,18 +86,24 @@ const SettingsManager: React.FC<{ onDataUpdate: () => Promise<void> }> = ({ onDa
         setIsTestingMake(true);
         setMakeTestStatus(null);
         try {
-            const res = await sendToMakeWebhook({
-                event: 'test_ping',
-                message: 'Testnachricht aus dem art reisen Terminplaner',
-                customer: {
-                    name: 'Test Bernd Wychlacz',
-                    email: 'info@artreisen.de',
-                    phone: '+49 2104 75711',
-                    consultationType: 'in-office',
-                    comment: 'Test-Termin zur Überprüfung der Make.com Weiterleitung'
-                },
-                timestamp: new Date().toISOString()
+            const today = new Date().toISOString().split('T')[0];
+            const testPayload = createMakeWebhookPayload({
+                id: 'test-' + Date.now(),
+                name: 'Bernd Wychlacz (Testkunde)',
+                email: 'info@artreisen.de',
+                phone: '+49 2104 75711',
+                date: today,
+                time: '14:30',
+                duration: 30,
+                consultantId: 'bernd_wychlacz',
+                consultantName: 'Bernd Wychlacz',
+                consultationType: 'in-office',
+                whatsappAccepted: true,
+                privacyAccepted: true,
+                comment: 'Testübertragung aus dem art reisen Terminplaner zur Prüfung der E-Mail-Felder.',
+                event: 'test_appointment'
             });
+            const res = await sendToMakeWebhook(testPayload);
             if (res.success) {
                 setMakeTestStatus('success');
             } else {

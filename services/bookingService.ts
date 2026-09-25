@@ -195,6 +195,135 @@ export const saveMakeWebhookUrl = (url: string) => {
     }
 };
 
+export interface MakePayloadOptions {
+    id?: string;
+    consultantId: string;
+    consultantName?: string;
+    date: string;
+    time: string;
+    duration: number | string;
+    name: string;
+    email: string;
+    phone: string;
+    consultationType: string;
+    whatsappAccepted?: boolean;
+    privacyAccepted?: boolean;
+    comment?: string;
+    isSpecialRequest?: boolean;
+    event?: string;
+}
+
+export const createMakeWebhookPayload = (options: MakePayloadOptions) => {
+    const durationNum = parseInt(String(options.duration), 10) || 30;
+    
+    // Lesbare deutsche Bezeichnung für Beratungsart
+    let consultationTypeText = options.consultationType;
+    if (options.consultationType === 'in-office') {
+        consultationTypeText = 'Persönlich im Reisebüro (Mühlenstraße 21-23, Mettmann)';
+    } else if (options.consultationType === 'video') {
+        consultationTypeText = 'Online-Videoberatung';
+    } else if (options.consultationType === 'phone') {
+        consultationTypeText = 'Telefonische Beratung';
+    }
+
+    const whatsappText = options.whatsappAccepted ? 'Ja' : 'Nein';
+    const privacyText = options.privacyAccepted ? 'Ja' : 'Nein';
+    const commentText = (options.comment || '').trim() || 'Kein Kommentar';
+    const consultantNameText = options.consultantName || (options.consultantId === 'bernd_wychlacz' ? 'Bernd Wychlacz' : 'Deliah Wysk');
+
+    // Deutsches Datumsformat (z.B. 25.10.2026)
+    let germanDate = options.date;
+    if (options.date && options.date.includes('-')) {
+        const parts = options.date.split('-');
+        if (parts.length === 3) {
+            germanDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+        }
+    }
+
+    return {
+        // --- 1. Standard englische flache Felder ---
+        event: options.event || 'new_appointment',
+        appointment_id: options.id || '',
+        name: options.name,
+        email: options.email,
+        phone: options.phone,
+        date: options.date,
+        formatted_date: germanDate,
+        time: options.time,
+        duration: durationNum,
+        consultant_id: options.consultantId,
+        consultant_name: consultantNameText,
+        consultation_type: consultationTypeText,
+        consultationType: consultationTypeText,
+        whatsapp_accepted: whatsappText,
+        whatsappAccepted: whatsappText,
+        whatsapp: whatsappText,
+        whatsapp_bool: !!options.whatsappAccepted,
+        privacy_accepted: privacyText,
+        privacyAccepted: privacyText,
+        privacy_bool: !!options.privacyAccepted,
+        comment: commentText,
+        is_special_request: !!options.isSpecialRequest,
+        timestamp: new Date().toISOString(),
+
+        // --- 2. Deutsche Feldnamen (für Make.com E-Mail Vorlagen) ---
+        "Name": options.name,
+        "E-Mail": options.email,
+        "Email": options.email,
+        "Telefon": options.phone,
+        "Datum": germanDate,
+        "Uhrzeit": options.time,
+        "Dauer": durationNum,
+        "Berater-ID": options.consultantId,
+        "Berater_ID": options.consultantId,
+        "Berater": consultantNameText,
+        "Berater-Name": consultantNameText,
+        "Art der Beratung": consultationTypeText,
+        "Art_der_Beratung": consultationTypeText,
+        "WhatsApp erlaubt": whatsappText,
+        "WhatsApp_erlaubt": whatsappText,
+        "Datenschutz zugestimmt": privacyText,
+        "Datenschutz_zugestimmt": privacyText,
+        "Kommentar": commentText,
+
+        // --- 3. Verschachtelte Strukturen (Rückwärtskompatibilität & Supabase Webhook Format) ---
+        customer: {
+            name: options.name,
+            email: options.email,
+            phone: options.phone,
+            consultationType: consultationTypeText,
+            whatsappAccepted: whatsappText,
+            privacyAccepted: privacyText,
+            comment: commentText
+        },
+        details: {
+            name: options.name,
+            email: options.email,
+            phone: options.phone,
+            consultationType: consultationTypeText,
+            whatsappAccepted: whatsappText,
+            privacyAccepted: privacyText,
+            comment: commentText
+        },
+        record: {
+            id: options.id || '',
+            consultant_id: options.consultantId,
+            date: options.date,
+            time: options.time,
+            duration: durationNum,
+            details: {
+                name: options.name,
+                email: options.email,
+                phone: options.phone,
+                consultationType: consultationTypeText,
+                whatsappAccepted: whatsappText,
+                privacyAccepted: privacyText,
+                comment: commentText
+            }
+        }
+    };
+};
+
 export const sendToMakeWebhook = async (payload: any): Promise<{ success: boolean; error?: string }> => {
     const webhookUrl = getMakeWebhookUrl();
     if (!webhookUrl) {
@@ -238,23 +367,6 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
 
     const duration = parseInt(bookingDetails.appointmentType, 10) || 30;
 
-    const webhookPayload = {
-        event: 'new_appointment',
-        appointment_type: duration,
-        date: bookingDetails.date,
-        time: bookingDetails.time,
-        consultant_id: targetConsultantId,
-        customer: {
-            name: bookingDetails.name,
-            email: bookingDetails.email,
-            phone: bookingDetails.phone,
-            whatsappAccepted: bookingDetails.whatsappAccepted,
-            consultationType: bookingDetails.consultationType,
-            comment: bookingDetails.comment
-        },
-        timestamp: new Date().toISOString()
-    };
-
     if (supabase) {
         try {
             const [consultants, openingHours] = await Promise.all([
@@ -271,7 +383,7 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
 
             if (bookingDetails.time === 'Sondertermin') {
                 // Sondertermin in Supabase eintragen
-                const { error: sError } = await supabase.from('appointments').insert({
+                const { data: sInsertData, error: sError } = await supabase.from('appointments').insert({
                     consultant_id: targetConsultantId,
                     date: bookingDetails.date,
                     time: 'Sondertermin',
@@ -286,7 +398,7 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
                         privacyAccepted: bookingDetails.privacyAccepted,
                         isSpecialRequest: true
                     }
-                });
+                }).select();
 
                 if (sError) {
                     console.error('[Supabase] Sondertermin Insert fehlgeschlagen:', sError);
@@ -294,8 +406,24 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
                     console.log('[Supabase] Sondertermin erfolgreich in appointments gespeichert!');
                 }
 
-                // Make Webhook (falls konfiguriert)
-                await sendToMakeWebhook({ ...webhookPayload, is_special_request: true });
+                // Vollständiges Make Webhook Payload mit allen deutschen & englischen Feldern
+                const sWebhookPayload = createMakeWebhookPayload({
+                    id: sInsertData?.[0]?.id,
+                    consultantId: targetConsultantId,
+                    consultantName: consultant.name,
+                    date: bookingDetails.date,
+                    time: 'Sondertermin',
+                    duration: duration,
+                    name: bookingDetails.name,
+                    email: bookingDetails.email,
+                    phone: bookingDetails.phone,
+                    consultationType: bookingDetails.consultationType,
+                    whatsappAccepted: bookingDetails.whatsappAccepted,
+                    privacyAccepted: bookingDetails.privacyAccepted,
+                    comment: bookingDetails.comment,
+                    isSpecialRequest: true
+                });
+                await sendToMakeWebhook(sWebhookPayload);
 
                 return { 
                     success: true, 
@@ -335,12 +463,24 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
 
             console.log("[Supabase] Neuer Termin erfolgreich gespeichert:", insertData);
             
-            // Make Webhook auslösen (falls direkte Webhook-URL hinterlegt)
-            await sendToMakeWebhook({
-                ...webhookPayload,
-                appointment_id: insertData?.[0]?.id,
-                consultant_name: consultant.name
+            // Vollständiges Make Webhook Payload mit allen deutschen & englischen Feldern
+            const webhookPayload = createMakeWebhookPayload({
+                id: insertData?.[0]?.id,
+                consultantId: targetConsultantId,
+                consultantName: consultant.name,
+                date: bookingDetails.date,
+                time: bookingDetails.time,
+                duration: duration,
+                name: bookingDetails.name,
+                email: bookingDetails.email,
+                phone: bookingDetails.phone,
+                consultationType: bookingDetails.consultationType,
+                whatsappAccepted: bookingDetails.whatsappAccepted,
+                privacyAccepted: bookingDetails.privacyAccepted,
+                comment: bookingDetails.comment,
+                isSpecialRequest: false
             });
+            await sendToMakeWebhook(webhookPayload);
             
             return { 
                 success: true, 
@@ -355,7 +495,20 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
     }
     
     // Fallback: Direktes Make.com Webhook auch im Offline/Mock-Modus senden falls URL vorhanden
-    await sendToMakeWebhook(webhookPayload);
+    const fallbackPayload = createMakeWebhookPayload({
+        consultantId: targetConsultantId,
+        date: bookingDetails.date,
+        time: bookingDetails.time,
+        duration: duration,
+        name: bookingDetails.name,
+        email: bookingDetails.email,
+        phone: bookingDetails.phone,
+        consultationType: bookingDetails.consultationType,
+        whatsappAccepted: bookingDetails.whatsappAccepted,
+        privacyAccepted: bookingDetails.privacyAccepted,
+        comment: bookingDetails.comment
+    });
+    await sendToMakeWebhook(fallbackPayload);
     const response = await mockApiRequest('/api/bookings', { method: 'POST', body: JSON.stringify(bookingDetails) });
     return response;
 };
