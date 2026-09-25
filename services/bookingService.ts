@@ -21,17 +21,19 @@ const getFullConsultantsFromSupabase = async (): Promise<Consultant[]> => {
         throw new Error("Supabase Client nicht verfügbar.");
     }
 
-    const { data: consultantsData, error: cError } = await supabase.from('consultants').select('*');
+    let { data: consultantsData, error: cError } = await supabase.from('consultants').select('*');
     if (cError) {
         console.warn("[Supabase] Fehler beim Abrufen der Berater:", cError.message);
         throw new Error(`Datenbankfehler (Berater): ${cError.message}`);
     }
 
-    // Wenn Tabelle noch ganz leer ist, Standardberater automatisch anlegen
-    if (!consultantsData || consultantsData.length === 0) {
-        console.log("[Supabase] Keine Berater in DB gefunden. Lege Standardberater an...");
+    // Sicherstellen, dass Standardberater (deliah_wysk & bernd_wychlacz) in DB existieren
+    const hasDeliah = consultantsData?.some((c: any) => c.id === 'deliah_wysk');
+    const hasBernd = consultantsData?.some((c: any) => c.id === 'bernd_wychlacz');
+    if (!hasDeliah || !hasBernd) {
+        console.log("[Supabase] Standardberater fehlen in DB. Führe Upsert aus...");
         try {
-            await supabase.from('consultants').insert([
+            await supabase.from('consultants').upsert([
                 {
                     id: 'deliah_wysk',
                     name: 'Deliah Wysk',
@@ -49,10 +51,13 @@ const getFullConsultantsFromSupabase = async (): Promise<Consultant[]> => {
                     recurring_blocked_slots: []
                 }
             ]);
+            const { data: refreshed } = await supabase.from('consultants').select('*');
+            if (refreshed) {
+                consultantsData = refreshed;
+            }
         } catch (e) {
-            console.warn("[Supabase] Auto-Seed fehlgeschlagen:", e);
+            console.warn("[Supabase] Auto-Upsert fehlgeschlagen:", e);
         }
-        return defaultConsultants;
     }
 
     let appointmentsData: DBAppointment[] = [];
@@ -173,6 +178,47 @@ export const fetchAvailability = async (request: AvailabilityRequest): Promise<A
     return mockApiRequest(`/api/availability?date1=${request.date1}&consultantId=${request.consultantId}&appointmentType=${request.appointmentType}`);
 };
 
+// --- Make.com Webhook Integration ---
+export const getMakeWebhookUrl = (): string => {
+    const envUrl = (import.meta as any).env?.VITE_MAKE_WEBHOOK_URL || '';
+    const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('artreisen_make_webhook_url') : null;
+    return (storedUrl || envUrl || '').trim();
+};
+
+export const saveMakeWebhookUrl = (url: string) => {
+    if (typeof window !== 'undefined') {
+        if (url.trim()) {
+            localStorage.setItem('artreisen_make_webhook_url', url.trim());
+        } else {
+            localStorage.removeItem('artreisen_make_webhook_url');
+        }
+    }
+};
+
+export const sendToMakeWebhook = async (payload: any): Promise<{ success: boolean; error?: string }> => {
+    const webhookUrl = getMakeWebhookUrl();
+    if (!webhookUrl) {
+        return { success: false, error: 'Keine Webhook-URL konfiguriert.' };
+    }
+    try {
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        console.log('[Make.com Webhook] Erfolgreich übermittelt:', payload);
+        return { success: true };
+    } catch (err: any) {
+        console.warn('[Make.com Webhook] Übermittlung fehlgeschlagen:', err);
+        return { success: false, error: err.message };
+    }
+};
+
 const sendAdminNotificationEmail = async (bookingDetails: BookingRequest) => {
     console.group("📧 TERMIN-BENACHRICHTIGUNG (Simulation)");
     console.log(`An: info@artreisen.de\nBetreff: Neuer Termin von ${bookingDetails.name}`);
@@ -184,35 +230,90 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
     const supabase = getSupabaseClient();
     await sendAdminNotificationEmail(bookingDetails);
 
+    // Zielberater ermitteln (Fallback falls 'any' oder nicht gefunden)
+    let targetConsultantId = bookingDetails.consultantId;
+    if (!targetConsultantId || targetConsultantId === 'any') {
+        targetConsultantId = 'deliah_wysk';
+    }
+
+    const duration = parseInt(bookingDetails.appointmentType, 10) || 30;
+
+    const webhookPayload = {
+        event: 'new_appointment',
+        appointment_type: duration,
+        date: bookingDetails.date,
+        time: bookingDetails.time,
+        consultant_id: targetConsultantId,
+        customer: {
+            name: bookingDetails.name,
+            email: bookingDetails.email,
+            phone: bookingDetails.phone,
+            whatsappAccepted: bookingDetails.whatsappAccepted,
+            consultationType: bookingDetails.consultationType,
+            comment: bookingDetails.comment
+        },
+        timestamp: new Date().toISOString()
+    };
+
     if (supabase) {
-        if (bookingDetails.time === 'Sondertermin') {
-             return { 
-                success: true, 
-                confirmation: {
-                    title: 'Deine Anfrage ist auf dem Weg!',
-                    message: `Danke für deine Anfrage, ${bookingDetails.name}! Wir prüfen das sofort und melden uns bei dir.`
-                }
-            };
-        }
-        
         try {
             const [consultants, openingHours] = await Promise.all([
                 getFullConsultantsFromSupabase(), 
                 getOpeningHoursFromSupabase()
             ]);
-            
-            const consultant = consultants.find(c => c.id === bookingDetails.consultantId);
-            if (!consultant) throw new Error("Ausgewählter Berater nicht im System gefunden.");
 
-            const duration = parseInt(bookingDetails.appointmentType, 10);
+            // Sicherstellen, dass targetConsultantId in DB existiert
+            let consultant = consultants.find(c => c.id === targetConsultantId);
+            if (!consultant) {
+                consultant = consultants[0] || defaultConsultants[0];
+                targetConsultantId = consultant.id;
+            }
+
+            if (bookingDetails.time === 'Sondertermin') {
+                // Sondertermin in Supabase eintragen
+                const { error: sError } = await supabase.from('appointments').insert({
+                    consultant_id: targetConsultantId,
+                    date: bookingDetails.date,
+                    time: 'Sondertermin',
+                    duration: duration,
+                    details: {
+                        name: bookingDetails.name,
+                        email: bookingDetails.email,
+                        phone: bookingDetails.phone,
+                        whatsappAccepted: bookingDetails.whatsappAccepted,
+                        consultationType: bookingDetails.consultationType,
+                        comment: bookingDetails.comment,
+                        privacyAccepted: bookingDetails.privacyAccepted,
+                        isSpecialRequest: true
+                    }
+                });
+
+                if (sError) {
+                    console.error('[Supabase] Sondertermin Insert fehlgeschlagen:', sError);
+                } else {
+                    console.log('[Supabase] Sondertermin erfolgreich in appointments gespeichert!');
+                }
+
+                // Make Webhook (falls konfiguriert)
+                await sendToMakeWebhook({ ...webhookPayload, is_special_request: true });
+
+                return { 
+                    success: true, 
+                    confirmation: {
+                        title: 'Deine Anfrage ist auf dem Weg!',
+                        message: `Danke für deine Anfrage, ${bookingDetails.name}! Wir prüfen das sofort und melden uns bei dir.`
+                    }
+                };
+            }
+            
             const slotStartMinutes = timeToMinutes(bookingDetails.time);
             
             if (!isConsultantAvailableForSlot(bookingDetails.date, slotStartMinutes, duration, consultant, openingHours)) {
                 return { success: false, confirmation: { title: 'Fehler', message: `Dieser Termin wurde leider gerade eben vergeben.` } };
             }
 
-            const { error } = await supabase.from('appointments').insert({
-                consultant_id: bookingDetails.consultantId,
+            const { data: insertData, error } = await supabase.from('appointments').insert({
+                consultant_id: targetConsultantId,
                 date: bookingDetails.date,
                 time: bookingDetails.time,
                 duration: duration,
@@ -225,12 +326,21 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
                     comment: bookingDetails.comment,
                     privacyAccepted: bookingDetails.privacyAccepted
                 }
-            });
+            }).select();
             
             if (error) {
-                console.warn("[Supabase] Insert fehlgeschlagen, wechsle auf Fallback:", error);
+                console.error("[Supabase] Insert fehlgeschlagen:", error);
                 throw error;
             }
+
+            console.log("[Supabase] Neuer Termin erfolgreich gespeichert:", insertData);
+            
+            // Make Webhook auslösen (falls direkte Webhook-URL hinterlegt)
+            await sendToMakeWebhook({
+                ...webhookPayload,
+                appointment_id: insertData?.[0]?.id,
+                consultant_name: consultant.name
+            });
             
             return { 
                 success: true, 
@@ -239,10 +349,13 @@ export const bookAppointment = async (bookingDetails: BookingRequest): Promise<{
                     message: `Vielen Dank für deine Buchung, ${bookingDetails.name}! Wir freuen uns auf dich.` 
                 } 
             };
-        } catch (e) {
-            console.warn("[Supabase] Buchungsfehler, verwende lokalen Speicher:", e);
+        } catch (e: any) {
+            console.warn("[Supabase] Buchungsfehler, verwende lokalen Speicher:", e?.message || e);
         }
     }
+    
+    // Fallback: Direktes Make.com Webhook auch im Offline/Mock-Modus senden falls URL vorhanden
+    await sendToMakeWebhook(webhookPayload);
     const response = await mockApiRequest('/api/bookings', { method: 'POST', body: JSON.stringify(bookingDetails) });
     return response;
 };

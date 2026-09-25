@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { type Consultant, type RecurringBlockedSlot, type OpeningHours, type DayHours, type SpecialDay, type FixedAppointment } from '../types';
-import { addConsultant, updateConsultant, deleteConsultant, updateOpeningHours } from '../services/bookingService';
+import { 
+  addConsultant, 
+  updateConsultant, 
+  deleteConsultant, 
+  updateOpeningHours,
+  getMakeWebhookUrl,
+  saveMakeWebhookUrl,
+  sendToMakeWebhook
+} from '../services/bookingService';
 import { 
   saveSupabaseCredentials, 
   hasSupabaseCredentials, 
@@ -41,6 +49,9 @@ const SettingsManager: React.FC<{ onDataUpdate: () => Promise<void> }> = ({ onDa
     } | null>(null);
     const [copied, setCopied] = useState(false);
     const [showSql, setShowSql] = useState(false);
+    const [makeWebhookUrl, setMakeWebhookUrlState] = useState(getMakeWebhookUrl());
+    const [makeTestStatus, setMakeTestStatus] = useState<string | null>(null);
+    const [isTestingMake, setIsTestingMake] = useState(false);
 
     useEffect(() => {
         runCheck();
@@ -58,6 +69,44 @@ const SettingsManager: React.FC<{ onDataUpdate: () => Promise<void> }> = ({ onDa
         await runCheck();
         await onDataUpdate();
         alert('Supabase-Einstellungen gespeichert und neu synchronisiert.');
+    };
+
+    const handleSaveMake = () => {
+        saveMakeWebhookUrl(makeWebhookUrl);
+        alert('Make.com Webhook-URL gespeichert!');
+    };
+
+    const handleTestMake = async () => {
+        if (!makeWebhookUrl.trim()) {
+            alert('Bitte tragen Sie zuerst Ihre Make.com Webhook-URL ein.');
+            return;
+        }
+        saveMakeWebhookUrl(makeWebhookUrl);
+        setIsTestingMake(true);
+        setMakeTestStatus(null);
+        try {
+            const res = await sendToMakeWebhook({
+                event: 'test_ping',
+                message: 'Testnachricht aus dem art reisen Terminplaner',
+                customer: {
+                    name: 'Test Bernd Wychlacz',
+                    email: 'info@artreisen.de',
+                    phone: '+49 2104 75711',
+                    consultationType: 'in-office',
+                    comment: 'Test-Termin zur Überprüfung der Make.com Weiterleitung'
+                },
+                timestamp: new Date().toISOString()
+            });
+            if (res.success) {
+                setMakeTestStatus('success');
+            } else {
+                setMakeTestStatus(res.error || 'Fehler beim Senden');
+            }
+        } catch (e: any) {
+            setMakeTestStatus(e?.message || 'Unerwarteter Fehler');
+        } finally {
+            setIsTestingMake(false);
+        }
     };
 
     const handleCopySql = () => {
@@ -182,6 +231,68 @@ const SettingsManager: React.FC<{ onDataUpdate: () => Promise<void> }> = ({ onDa
                         className="px-4 py-3 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-xl font-bold uppercase text-xs transition-colors"
                     >
                         Trennen
+                    </button>
+                </div>
+            </div>
+
+            {/* Make.com Webhook Konfiguration */}
+            <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-4">
+                    <div>
+                        <h3 className="text-base font-black uppercase text-artreisen-blue">Make.com Webhook (E-Mail Weiterleitung)</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Automatischer E-Mail-Versand an Reisebüro & Kunden über Ihr Make-Szenario</p>
+                    </div>
+                    {makeWebhookUrl && (
+                        <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                            Aktiv
+                        </span>
+                    )}
+                </div>
+
+                <p className="text-xs text-gray-500">
+                    Tragen Sie hier die Webhook-Adresse Ihres Make.com-Szenarios ein. Jeder neue Termin (auch Sonderanfragen) wird zusätzlich direkt an Make.com übermittelt, falls der Supabase-Datenbanktrigger nicht auslöst.
+                </p>
+
+                <div className="space-y-3">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">Make Webhook-URL</label>
+                        <input 
+                            type="text" 
+                            value={makeWebhookUrl} 
+                            onChange={e => setMakeWebhookUrlState(e.target.value)} 
+                            placeholder="https://hook.eu1.make.com/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" 
+                            className="w-full p-3 border rounded-xl text-xs font-mono bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none"
+                        />
+                    </div>
+                </div>
+
+                {makeTestStatus && (
+                    <div className={`p-3 rounded-xl border text-xs font-medium ${
+                        makeTestStatus === 'success' 
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                            : 'bg-red-50 border-red-200 text-red-800'
+                    }`}>
+                        {makeTestStatus === 'success' ? (
+                            <span>✅ Test-Ping erfolgreich an Make.com gesendet! Prüfen Sie den Ausführungsverlauf in Ihrem Make-Szenario.</span>
+                        ) : (
+                            <span>❌ Fehler beim Senden an Make.com: {makeTestStatus}</span>
+                        )}
+                    </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                    <button 
+                        onClick={handleSaveMake} 
+                        className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black uppercase text-xs tracking-wider shadow transition-colors"
+                    >
+                        Webhook-URL Speichern
+                    </button>
+                    <button 
+                        onClick={handleTestMake} 
+                        disabled={isTestingMake}
+                        className="px-5 py-3 border border-purple-300 text-purple-700 hover:bg-purple-50 rounded-xl font-bold uppercase text-xs transition-colors disabled:opacity-50"
+                    >
+                        {isTestingMake ? 'Sendet...' : 'Webhook testen 🚀'}
                     </button>
                 </div>
             </div>
