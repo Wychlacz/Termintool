@@ -436,6 +436,7 @@ const App: React.FC = () => {
                       consultantNotAvailable={consultantNotAvailable}
                       onCheckOtherConsultants={handleCheckOtherConsultants}
                       consultants={consultants}
+                      onOpenLegal={(tab) => setLegalModalTab(tab)}
                     />
                   )}
                   {step === 'booked' && <ConfirmationScreen onReset={reset} theme={theme} formData={formData} selectedSlot={selectedSlot} consultants={consultants} confirmation={bookingConfirmation} />}

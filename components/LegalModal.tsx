@@ -124,7 +124,11 @@ export const LegalModal: React.FC<LegalModalProps> = ({ activeTab, onClose, onSe
               </div>
 
               <div className="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 text-xs text-emerald-900 leading-normal">
-                🛡️ <strong>Verantwortliche Stelle:</strong> Reisebüro art reisen GmbH, Mühlenstrasse 21-23, 40822 Mettmann, E-Mail: <a href="mailto:info@artreisen.de" className="underline font-bold text-emerald-900">info@artreisen.de</a>, Tel. 02104 75711. Wir verarbeiten Ihre Daten streng im Einklang mit der EU-Datenschutz-Grundverordnung (DSGVO) und dem Bundesdatenschutzgesetz (BDSG).
+                🛡️ <strong>Verantwortliche Stelle:</strong> Reisebüro art reisen GmbH, Mühlenstrasse 21-23, 40822 Mettmann, E-Mail:{' '}
+                <a href="mailto:info@artreisen.de" className="underline font-bold text-emerald-900">
+                  info@artreisen.de
+                </a>
+                , Tel. 02104 75711. Wir verarbeiten Ihre Daten streng im Einklang mit der EU-Datenschutz-Grundverordnung (DSGVO) und dem Bundesdatenschutzgesetz (BDSG).
               </div>
 
               <div>
@@ -132,7 +136,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ activeTab, onClose, onSe
                   1. Zweck und Rechtsgrundlage der Datenverarbeitung (Art. 13 Abs. 1 lit. c DSGVO)
                 </strong>
                 <p className="text-xs text-gray-600">
-                  Die von Ihnen im Terminplaner eingegebenen personenbezogenen Daten (Name, Vorname, E-Mail-Adresse, Telefonnummer, Wunschtermine und gewünschte Beratungsform) werden ausschließlich zur Bearbeitung und Bestätigung Ihrer Terminanfrage verarbeitet (<strong>Art. 6 Abs. 1 lit. b DSGVO</strong> – vorvertragliche Maßnahmen).
+                  Die von Ihnen im Terminplaner eingegebenen personenbezogenen Daten (Name, Vorname, E-Mail-Adresse, Telefonnummer, Wunschtermine und gewünschte Beratungsform) werden ausschließlich zur Bearbeitung und Bestätigung Ihrer Terminanfrage verarbeitet (Art. 6 Abs. 1 lit. b DSGVO – vorvertragliche Maßnahmen).
                 </p>
               </div>
 
@@ -141,7 +145,17 @@ export const LegalModal: React.FC<LegalModalProps> = ({ activeTab, onClose, onSe
                   2. Empfänger der Daten & Auftragsverarbeitung (Art. 13 Abs. 1 lit. e DSGVO)
                 </strong>
                 <p className="text-xs text-gray-600">
-                  Ihre Daten werden vertraulich behandelt und nicht an unbefugte Dritte weitergegeben. Der Zugriff erfolgt ausschließlich durch autorisierte Reiseberater der art reisen GmbH zur Terminkoordination.
+                  Ihre Daten werden vertraulich behandelt und nicht an unbefugte Dritte weitergegeben. Zugriff auf die Daten haben:
+                </p>
+                <ul className="list-disc list-inside text-xs text-gray-600 mt-1 space-y-1">
+                  <li>Autorisierte Reiseberater der art reisen GmbH zur Terminkoordination.</li>
+                  <li>
+                    Supabase Pte. Ltd. (Singapur) als technischer Auftragsverarbeiter für die Datenbank, auf Grundlage eines Auftragsverarbeitungsvertrags (Art. 28 DSGVO) inkl. EU-Standardvertragsklauseln (SCC) für die Datenübermittlung in ein Drittland.
+                  </li>
+                  <li>Netlify, Inc. als Hosting-Anbieter dieser Webseite.</li>
+                </ul>
+                <p className="text-xs text-gray-600 mt-2">
+                  Eine Weitergabe an sonstige Dritte erfolgt nicht.
                 </p>
               </div>
 
@@ -150,7 +164,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ activeTab, onClose, onSe
                   3. Speicherdauer & Löschfristen (Art. 13 Abs. 2 lit. a DSGVO)
                 </strong>
                 <p className="text-xs text-gray-600">
-                  Ihre Termindaten werden nach Durchführung oder Absage des Beratungstermins gelöscht, sofern sich kein nachfolgender Reisevertrag oder gesetzliche handels- bzw. steuerrechtliche Aufbewahrungsfristen ergeben.
+                  Ihre Termindaten werden spätestens 6 Monate nach Durchführung oder Absage des Beratungstermins gelöscht, sofern sich kein nachfolgender Reisevertrag oder gesetzliche handels- bzw. steuerrechtliche Aufbewahrungsfristen (z. B. §147 AO, §257 HGB) ergeben.
                 </p>
               </div>
 
@@ -168,7 +182,13 @@ export const LegalModal: React.FC<LegalModalProps> = ({ activeTab, onClose, onSe
                   5. Ihre Rechte als betroffene Person
                 </strong>
                 <p className="text-xs text-gray-600">
-                  Sie haben das Recht auf unentgeltliche Auskunft über Ihre gespeicherten personenbezogenen Daten sowie ein Recht auf Berichtigung, Einschränkung oder Löschung dieser Daten. Wenden Sie sich hierzu jederzeit formlos an <a href="mailto:info@artreisen.de" className="text-artreisen-blue underline">info@artreisen.de</a>.
+                  Sie haben das Recht auf unentgeltliche Auskunft über Ihre gespeicherten personenbezogenen Daten sowie ein Recht auf Berichtigung, Einschränkung, Löschung und Datenübertragbarkeit dieser Daten. Sofern die Verarbeitung auf Grundlage eines berechtigten Interesses erfolgt, haben Sie zudem ein Widerspruchsrecht (Art. 21 DSGVO). Wenden Sie sich hierzu jederzeit formlos an{' '}
+                  <a href="mailto:info@artreisen.de" className="text-artreisen-blue underline font-semibold">
+                    info@artreisen.de
+                  </a>.
+                </p>
+                <p className="text-xs text-gray-600 mt-2">
+                  Darüber hinaus haben Sie das Recht, sich bei einer Datenschutzaufsichtsbehörde zu beschweren, z. B. bei der Landesbeauftragten für Datenschutz und Informationsfreiheit Nordrhein-Westfalen (Art. 77 DSGVO).
                 </p>
               </div>
 

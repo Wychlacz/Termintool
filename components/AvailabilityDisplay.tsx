@@ -18,6 +18,7 @@ interface AvailabilityDisplayProps {
   consultantNotAvailable: string | null;
   onCheckOtherConsultants: () => void;
   consultants: Consultant[];
+  onOpenLegal?: (tab: 'impressum' | 'datenschutz' | 'agb') => void;
 }
 
 export const AvailabilityDisplay: React.FC<AvailabilityDisplayProps> = ({
@@ -33,7 +34,8 @@ export const AvailabilityDisplay: React.FC<AvailabilityDisplayProps> = ({
   step,
   consultantNotAvailable,
   onCheckOtherConsultants,
-  consultants
+  consultants,
+  onOpenLegal
 }) => {
   const themeClasses = {
     default: { accent: 'bg-artreisen-orange', text: 'text-artreisen-blue', focusRing: 'focus:ring-artreisen-orange' },
@@ -204,7 +206,14 @@ export const AvailabilityDisplay: React.FC<AvailabilityDisplayProps> = ({
                 <div className="flex items-center">
                     <input id="privacyAccepted" name="privacyAccepted" type="checkbox" checked={formData.privacyAccepted} onChange={onFormChange} className="h-4 w-4 rounded border-gray-300 text-artreisen-orange focus:ring-artreisen-orange"/>
                     <label htmlFor="privacyAccepted" className="ml-3 block text-sm text-gray-700">
-                        Ich stimme zu, dass meine Daten zur Verarbeitung dieser Terminanfrage verwendet werden. Lies unsere <a href="#" className="font-semibold underline hover:text-artreisen-blue">Datenschutzerklärung</a>.
+                        Ich stimme zu, dass meine Daten zur Verarbeitung dieser Terminanfrage verwendet werden. Lies unsere{' '}
+                        <button 
+                            type="button" 
+                            onClick={() => onOpenLegal ? onOpenLegal('datenschutz') : window.open('https://artreisen.de/datenschutz/', '_blank')}
+                            className="font-semibold underline hover:text-artreisen-blue cursor-pointer inline text-left p-0 bg-transparent border-0"
+                        >
+                            Datenschutzerklärung
+                        </button>.
                     </label>
                 </div>
             </div>
