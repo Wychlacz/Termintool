@@ -852,10 +852,10 @@ const PasswordManager: React.FC = () => {
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-lg mx-auto space-y-6">
             <div className="border-b pb-4">
                 <h3 className="text-base font-black uppercase text-artreisen-blue tracking-wide flex items-center gap-2">
-                    <span>🔑</span> Admin-Zugangsdaten & Passwort
+                    <span>🔑</span> Admin-Passwort ändern
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
-                    Anmeldename: <strong className="text-artreisen-blue">Ocean2get</strong> (das Wort &bdquo;admin&ldquo; ist gesperrt).
+                    Legen Sie hier das Passwort für den Zugang zum Verwaltungsbereich fest (das Wort &bdquo;admin&ldquo; ist gesperrt).
                 </p>
             </div>
 

@@ -10,7 +10,7 @@ import { Header } from './Header';
 import { AdminPanel } from './AdminPanel';
 import { WeeklyCalendar } from './WeeklyCalendar';
 import { LegalModal, type LegalTab } from './LegalModal';
-import { verifyAdminLogin, ADMIN_USERNAME } from '../services/authService';
+import { verifyAdminPassword } from '../services/authService';
 
 const App: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
@@ -40,7 +40,6 @@ const App: React.FC = () => {
   const [openingHours, setOpeningHours] = useState<OpeningHours | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState<boolean>(false);
-  const [usernameInput, setUsernameInput] = useState<string>('Ocean2get');
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [bookingConfirmation, setBookingConfirmation] = useState<BookingConfirmation | null>(null);
@@ -153,7 +152,6 @@ const App: React.FC = () => {
     if (isAdmin) {
       setView('admin');
     } else {
-      setUsernameInput(ADMIN_USERNAME);
       setPasswordInput('');
       setPasswordError(null);
       setShowPasswordPrompt(true);
@@ -162,7 +160,7 @@ const App: React.FC = () => {
   
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = await verifyAdminLogin(usernameInput, passwordInput);
+    const result = await verifyAdminPassword(passwordInput);
     if (result.success) {
       setIsAdmin(true);
       setView('admin');
@@ -170,7 +168,7 @@ const App: React.FC = () => {
       setPasswordInput('');
       setPasswordError(null);
     } else {
-      setPasswordError(result.error || 'Anmeldung fehlgeschlagen.');
+      setPasswordError(result.error || 'Falsches Passwort.');
       setPasswordInput('');
     }
   };
@@ -344,26 +342,11 @@ const App: React.FC = () => {
               className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-sm w-full text-gray-800"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="mb-4">
                 <h3 className="text-xl font-bold font-montserrat text-gray-800">Admin-Anmeldung</h3>
-                <span className="text-[11px] px-2.5 py-0.5 bg-blue-50 text-artreisen-blue font-bold rounded-full border border-blue-200">Ocean2get</span>
+                <p className="text-xs text-gray-500 mt-1">Bitte das Passwort eingeben, um den Verwaltungsbereich zu öffnen.</p>
               </div>
               <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="username-input" className="block text-xs font-bold uppercase text-gray-600 mb-1">
-                    Anmeldename
-                  </label>
-                  <input
-                    id="username-input"
-                    type="text"
-                    value={usernameInput}
-                    onChange={(e) => setUsernameInput(e.target.value)}
-                    placeholder="Ocean2get"
-                    className="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-artreisen-orange text-sm font-semibold"
-                    autoFocus
-                  />
-                </div>
-
                 <div>
                   <label htmlFor="password-input" className="block text-xs font-bold uppercase text-gray-600 mb-1">
                     Passwort
@@ -375,6 +358,7 @@ const App: React.FC = () => {
                     onChange={(e) => setPasswordInput(e.target.value)}
                     placeholder="Passwort eingeben"
                     className={`w-full p-3 rounded-xl border ${passwordError ? 'border-red-400' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-artreisen-orange text-sm`}
+                    autoFocus
                   />
                 </div>
 

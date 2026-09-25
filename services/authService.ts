@@ -1,49 +1,42 @@
 import { getSupabaseClient } from './supabaseClient';
 
-export const ADMIN_USERNAME = 'Ocean2get';
 const LOCAL_STORAGE_KEY = 'artreisen_admin_password';
-// 'admin' ist dauerhaft und strikt gesperrt
-const DEFAULT_PASSWORDS = ['artreisen2024', 'artreisen', 'ocean2get'];
+// 'admin' ist dauerhaft und strikt gesperrt! Standardpasswort ist Ocean2get.
+const DEFAULT_PASSWORDS = ['ocean2get', 'artreisen2024', 'artreisen'];
 
 export const getStoredPassword = (): string => {
-  return localStorage.getItem(LOCAL_STORAGE_KEY) || 'artreisen2024';
+  return localStorage.getItem(LOCAL_STORAGE_KEY) || 'Ocean2get';
 };
 
-export const verifyAdminLogin = async (
-  username: string, 
-  password: string
+export const verifyAdminPassword = async (
+  inputPassword: string
 ): Promise<{ success: boolean; error?: string }> => {
-  const cleanUser = username.trim();
-  const cleanPass = password.trim();
+  const cleanPass = inputPassword.trim();
 
-  // 1. Wort 'admin' ist strikt gesperrt
-  if (cleanUser.toLowerCase() === 'admin' || cleanPass.toLowerCase() === 'admin') {
+  // 1. Das Wort 'admin' ist strikt gesperrt
+  if (cleanPass.toLowerCase() === 'admin') {
     return { 
       success: false, 
-      error: "Das Wort 'admin' ist als Anmeldedaten gesperrt. Bitte verwenden Sie 'Ocean2get' als Anmeldenamen." 
+      error: "Das Wort 'admin' ist gesperrt! Bitte das korrekte Passwort (z. B. Ocean2get) eingeben." 
     };
   }
 
-  // 2. Anmeldename prüfen (muss Ocean2get sein)
-  if (!cleanUser || cleanUser.toLowerCase() !== ADMIN_USERNAME.toLowerCase()) {
-    return { 
-      success: false, 
-      error: `Ungültiger Anmeldename. Bitte '${ADMIN_USERNAME}' eingeben.` 
-    };
+  if (!cleanPass) {
+    return { success: false, error: 'Bitte ein Passwort eingeben.' };
   }
 
-  // 3. Passwort prüfen
+  // 2. Gespeichertes Passwort prüfen
   const currentSaved = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (currentSaved && cleanPass === currentSaved) {
     return { success: true };
   }
 
-  // Standard-Passwörter prüfen (OHNE 'admin')
+  // 3. Standard-Passwörter prüfen (inkl. Ocean2get / ocean2get)
   if (DEFAULT_PASSWORDS.includes(cleanPass.toLowerCase())) {
     return { success: true };
   }
 
-  // Supabase Abgleich
+  // 4. Supabase Abgleich falls vorhanden
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -58,11 +51,6 @@ export const verifyAdminLogin = async (
   }
 
   return { success: false, error: 'Falsches Passwort.' };
-};
-
-export const verifyAdminPassword = async (inputPassword: string): Promise<boolean> => {
-  const res = await verifyAdminLogin(ADMIN_USERNAME, inputPassword);
-  return res.success;
 };
 
 export const updateAdminPassword = async (newPassword: string): Promise<{ success: boolean; message: string }> => {
