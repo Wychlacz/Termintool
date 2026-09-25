@@ -10,7 +10,7 @@ import { Header } from './Header';
 import { AdminPanel } from './AdminPanel';
 import { WeeklyCalendar } from './WeeklyCalendar';
 import { LegalModal, type LegalTab } from './LegalModal';
-import { verifyAdminPassword } from '../services/authService';
+import { verifyAdminLogin, ADMIN_USERNAME } from '../services/authService';
 
 const App: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
@@ -40,6 +40,7 @@ const App: React.FC = () => {
   const [openingHours, setOpeningHours] = useState<OpeningHours | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState<boolean>(false);
+  const [usernameInput, setUsernameInput] = useState<string>('Ocean2get');
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [bookingConfirmation, setBookingConfirmation] = useState<BookingConfirmation | null>(null);
@@ -88,8 +89,8 @@ const App: React.FC = () => {
         const deliahTarget = initialConsultants.find(ic => ic.id === 'deliah_wysk') || initialConsultants[0];
         const berndTarget = initialConsultants.find(ic => ic.id === 'bernd_wychlacz') || initialConsultants[1];
 
-        const deliahFromDb = consultantsData?.find(c => c.id === 'deliah_wysk' || c.name.toLowerCase().includes('deliah'));
-        const berndFromDb = consultantsData?.find(c => c.id === 'bernd_wychlacz' || c.name.toLowerCase().includes('bernd'));
+        const deliahFromDb = consultantsData?.find(c => c.id === 'deliah_wysk') || consultantsData?.find(c => c.name.toLowerCase().includes('deliah'));
+        const berndFromDb = consultantsData?.find(c => c.id === 'bernd_wychlacz') || consultantsData?.find(c => c.name.toLowerCase().includes('bernd'));
 
         const finalDeliah: Consultant = {
             id: 'deliah_wysk',
@@ -112,8 +113,7 @@ const App: React.FC = () => {
         };
 
         const otherConsultants = (consultantsData || []).filter(c => 
-            c.id !== 'deliah_wysk' && c.id !== 'bernd_wychlacz' && 
-            !c.name.toLowerCase().includes('deliah') && !c.name.toLowerCase().includes('bernd')
+            c.id !== 'deliah_wysk' && c.id !== 'bernd_wychlacz'
         );
 
         const finalConsultants = [finalDeliah, finalBernd, ...otherConsultants];
@@ -153,6 +153,7 @@ const App: React.FC = () => {
     if (isAdmin) {
       setView('admin');
     } else {
+      setUsernameInput(ADMIN_USERNAME);
       setPasswordInput('');
       setPasswordError(null);
       setShowPasswordPrompt(true);
@@ -161,15 +162,15 @@ const App: React.FC = () => {
   
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const isValid = await verifyAdminPassword(passwordInput);
-    if (isValid) {
+    const result = await verifyAdminLogin(usernameInput, passwordInput);
+    if (result.success) {
       setIsAdmin(true);
       setView('admin');
       setShowPasswordPrompt(false);
       setPasswordInput('');
       setPasswordError(null);
     } else {
-      setPasswordError('Falsches Passwort.');
+      setPasswordError(result.error || 'Anmeldung fehlgeschlagen.');
       setPasswordInput('');
     }
   };
@@ -343,30 +344,57 @@ const App: React.FC = () => {
               className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-sm w-full text-gray-800"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-bold font-montserrat mb-4">Admin-Anmeldung</h3>
-              <form onSubmit={handlePasswordSubmit}>
-                <label htmlFor="password-input" className="block text-sm font-semibold text-gray-700 mb-2">Passwort</label>
-                <input
-                  id="password-input"
-                  type="password"
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder="Passwort eingeben"
-                  className={`w-full p-3 rounded-lg border ${passwordError ? 'border-red-500' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-artreisen-orange`}
-                  autoFocus
-                />
-                {passwordError && <p className="text-red-500 text-sm mt-2">{passwordError}</p>}
-                <div className="flex justify-end gap-4 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold font-montserrat text-gray-800">Admin-Anmeldung</h3>
+                <span className="text-[11px] px-2.5 py-0.5 bg-blue-50 text-artreisen-blue font-bold rounded-full border border-blue-200">Ocean2get</span>
+              </div>
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="username-input" className="block text-xs font-bold uppercase text-gray-600 mb-1">
+                    Anmeldename
+                  </label>
+                  <input
+                    id="username-input"
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    placeholder="Ocean2get"
+                    className="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-artreisen-orange text-sm font-semibold"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password-input" className="block text-xs font-bold uppercase text-gray-600 mb-1">
+                    Passwort
+                  </label>
+                  <input
+                    id="password-input"
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="Passwort eingeben"
+                    className={`w-full p-3 rounded-xl border ${passwordError ? 'border-red-400' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-artreisen-orange text-sm`}
+                  />
+                </div>
+
+                {passwordError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl leading-relaxed">
+                    {passwordError}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowPasswordPrompt(false)}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+                    className="px-4 py-2.5 bg-gray-100 text-gray-700 font-bold text-xs uppercase rounded-xl hover:bg-gray-200 transition"
                   >
                     Abbrechen
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-artreisen-blue text-white rounded-md hover:bg-artreisen-blue/80 transition"
+                    className="px-5 py-2.5 bg-artreisen-blue text-white font-bold text-xs uppercase rounded-xl hover:bg-blue-900 transition shadow-sm"
                   >
                     Anmelden
                   </button>

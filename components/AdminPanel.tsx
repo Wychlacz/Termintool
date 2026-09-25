@@ -371,16 +371,20 @@ const ConsultantManager: React.FC<{consultants: Consultant[], onDataUpdate: () =
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const handleSave = async (consultantToSave: Consultant) => {
     setIsSaving(true);
     setError(null);
+    setSuccessBanner(null);
     try {
         await updateConsultant(consultantToSave);
         await onDataUpdate();
         setEditingConsultant(null);
-    } catch (e) {
-        setError('Fehler beim Speichern des Mitarbeiters.');
+        setSuccessBanner(`Mitarbeiter "${consultantToSave.name}" & Foto erfolgreich gespeichert! ✅`);
+        setTimeout(() => setSuccessBanner(null), 5000);
+    } catch (e: any) {
+        setError(e?.message || 'Fehler beim Speichern des Mitarbeiters.');
     } finally {
         setIsSaving(false);
     }
@@ -411,51 +415,67 @@ const ConsultantManager: React.FC<{consultants: Consultant[], onDataUpdate: () =
     if (!file || !editingConsultant) return;
 
     setIsUploadingImage(true);
-    setUploadMessage('Bild wird optimiert & hochgeladen...');
+    setUploadMessage('Bild wird verarbeitet & optimiert...');
+    setError(null);
 
-    // 1. Zuerst Versuch über Supabase Storage
+    // 1. Zuerst Versuch über Supabase Storage (falls Bucket vorhanden)
     try {
       const storageRes = await uploadConsultantImageToSupabase(file, editingConsultant.id);
       if (storageRes.success && storageRes.url) {
-        setEditingConsultant(prev => prev ? { ...prev, imageUrl: storageRes.url! } : null);
+        const updated = { ...editingConsultant, imageUrl: storageRes.url };
+        setEditingConsultant(updated);
+        // Sofort in Supabase speichern!
+        await updateConsultant(updated);
+        await onDataUpdate();
         setUploadMessage('Foto erfolgreich in Supabase Cloud gespeichert! ✅');
         setIsUploadingImage(false);
         return;
       }
     } catch (err) {
-      console.warn('[Admin] Storage-Upload nicht möglich, wechsle auf lokale Speicherung:', err);
+      console.warn('[Admin] Storage-Upload nicht möglich, wechsle auf optimierte Direktspeicherung:', err);
     }
 
-    // 2. Fallback: Bild clientseitig komprimieren & als DataURL direkt speichern
+    // 2. Direktspeicherung in DB: Bild clientseitig komprimieren und sofort in Supabase speichern
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxDim = 600;
-        let width = img.width;
-        let height = img.height;
-        if (width > height) {
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
+      img.onload = async () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 500;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
           }
-        } else {
-          if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            
+            // Sofort im lokalen State & in Supabase sichern
+            const updated = { ...editingConsultant, imageUrl: compressedDataUrl };
+            setEditingConsultant(updated);
+            await updateConsultant(updated);
+            await onDataUpdate();
+            setUploadMessage('Foto sofort erfolgreich in Supabase gespeichert! ✅');
           }
+        } catch (uploadErr: any) {
+          console.error('Fehler beim Fotospeichern:', uploadErr);
+          setUploadMessage('Fehler beim Speichern: ' + (uploadErr?.message || 'Unbekannt'));
+        } finally {
+          setIsUploadingImage(false);
         }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
-          setEditingConsultant(prev => prev ? { ...prev, imageUrl: compressedDataUrl } : null);
-          setUploadMessage('Foto optimiert und bereit zum Speichern! ✅');
-        }
-        setIsUploadingImage(false);
       };
       if (event.target?.result) {
         img.src = event.target.result as string;
@@ -728,6 +748,11 @@ const ConsultantManager: React.FC<{consultants: Consultant[], onDataUpdate: () =
 
   return (
     <div className="space-y-3">
+      {successBanner && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold animate-fadeIn">
+          {successBanner}
+        </div>
+      )}
       {consultants.map(c => (
         <div key={c.id} className="flex items-center justify-between p-4 bg-white border rounded-2xl shadow-sm hover:border-gray-300 transition-all">
           <div className="flex items-center gap-4">
@@ -827,10 +852,10 @@ const PasswordManager: React.FC = () => {
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-lg mx-auto space-y-6">
             <div className="border-b pb-4">
                 <h3 className="text-base font-black uppercase text-artreisen-blue tracking-wide flex items-center gap-2">
-                    <span>🔑</span> Admin-Passwort ändern
+                    <span>🔑</span> Admin-Zugangsdaten & Passwort
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
-                    Legen Sie hier ein neues persönliches Passwort für den Zugang zum Verwaltungsbereich fest.
+                    Anmeldename: <strong className="text-artreisen-blue">Ocean2get</strong> (das Wort &bdquo;admin&ldquo; ist gesperrt).
                 </p>
             </div>
 

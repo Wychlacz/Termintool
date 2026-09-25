@@ -606,25 +606,29 @@ export const updateConsultant = async (consultant: Consultant): Promise<Consulta
     const supabase = getSupabaseClient();
     if (supabase) {
         try {
-            const { error } = await supabase.from('consultants').update({
+            const { data, error } = await supabase.from('consultants').update({
                 name: consultant.name, 
                 specialty: consultant.specialty, 
                 image_url: consultant.imageUrl, 
                 vacations: consultant.vacations, 
-                recurring_blocked_slots: consultant.recurringBlockedSlots,
-                updated_at: new Date().toISOString()
-            }).eq('id', consultant.id);
+                recurring_blocked_slots: consultant.recurringBlockedSlots
+            }).eq('id', consultant.id).select();
             
-            if (!error) {
+            if (!error && data) {
+                console.log("[Supabase] Berater erfolgreich aktualisiert:", data);
                 // Auch lokal synchronisieren
                 try {
                     await mockApiRequest(`/api/consultants/${consultant.id}`, { method: 'PUT', body: JSON.stringify(consultant) });
                 } catch {}
                 return consultant;
             }
-            console.warn("[Supabase] Berater-Update in Supabase fehlgeschlagen:", error);
-        } catch (e) {
-            console.warn("[Supabase] Update-Fehler:", e);
+            if (error) {
+                console.error("[Supabase] Berater-Update in Supabase fehlgeschlagen:", error);
+                throw new Error(`Datenbank-Fehler beim Speichern des Mitarbeiters: ${error.message}`);
+            }
+        } catch (e: any) {
+            console.error("[Supabase] Update-Fehler:", e);
+            throw e;
         }
     }
     return mockApiRequest(`/api/consultants/${consultant.id}`, { method: 'PUT', body: JSON.stringify(consultant) });
@@ -650,14 +654,16 @@ export const updateOpeningHours = async (hours: OpeningHours): Promise<OpeningHo
             const { error } = await supabase.from('opening_hours').upsert({ 
                 id: 1, 
                 general: hours.general, 
-                special: hours.special,
-                updated_at: new Date().toISOString()
+                special: hours.special
             });
             if (!error) {
                 try {
                     await mockApiRequest('/api/opening-hours', { method: 'PUT', body: JSON.stringify(hours) });
                 } catch {}
                 return hours;
+            }
+            if (error) {
+                console.warn("[Supabase] Öffnungszeiten Update-Fehler:", error);
             }
         } catch (e) {
             console.warn("[Supabase] Öffnungszeiten Update-Fehler:", e);
